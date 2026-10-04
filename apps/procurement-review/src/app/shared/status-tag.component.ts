@@ -4,6 +4,7 @@ import type {
   ClauseType,
   ClarificationStatus,
   ComplianceStatus,
+  MaterialStatus,
   VersionStatus,
 } from "../core/models/review.models";
 
@@ -49,6 +50,15 @@ const versionConfig: Record<
 > = {
   draft: { label: "工作版", severity: "warn" },
   finalized: { label: "已定稿", severity: "success" },
+};
+
+const materialConfig: Record<
+  MaterialStatus,
+  { label: string; severity: Severity }
+> = {
+  pending: { label: "待确认", severity: "warn" },
+  confirmed: { label: "已确认", severity: "success" },
+  reconfirm: { label: "待重新确认", severity: "danger" },
 };
 
 @Component({
@@ -120,5 +130,23 @@ export class VersionTagComponent {
 
   severity(): Severity {
     return versionConfig[this.status()].severity;
+  }
+}
+
+@Component({
+  selector: "app-material-status-tag",
+  imports: [TagModule],
+  template: `<p-tag [value]="label()" [severity]="severity()" />`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MaterialStatusTagComponent {
+  readonly status = input<MaterialStatus>("pending");
+
+  label(): string {
+    return materialConfig[this.status()].label;
+  }
+
+  severity(): Severity {
+    return materialConfig[this.status()].severity;
   }
 }

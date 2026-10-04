@@ -31,6 +31,14 @@
       <span>未完成澄清</span>
       <strong class="danger">{{ pendingClarifications().length }}</strong>
     </article>
+    <article>
+      <span>待重评响应</span>
+      <strong class="danger">{{ materialSummary().pendingReReview }}</strong>
+    </article>
+    <article>
+      <span>材料冲突来源</span>
+      <strong class="danger">{{ materialSummary().conflictCount }}</strong>
+    </article>
   </div>
 
   <div class="review-grid">
@@ -48,6 +56,7 @@
             <th>名称</th>
             <th>状态</th>
             <th>响应项</th>
+            <th>材料快照</th>
             <th>内容哈希</th>
             <th>创建信息</th>
           </tr>
@@ -68,6 +77,16 @@
               <div class="table-secondary">
                 {{ version.clauseCount }} 条条款
               </div>
+            </td>
+            <td>
+              @if (version.materialSnapshots.length) {
+                {{ version.materialSnapshots.length }} 份材料
+                <div class="table-secondary">
+                  盖章保留原材料，不受后续更新影响
+                </div>
+              } @else {
+                <span class="muted">工作版不锁定材料</span>
+              }
             </td>
             <td class="mono">{{ version.contentHash }}</td>
             <td>
@@ -170,6 +189,89 @@
             {{ item.response.reviews[item.response.reviews.length - 1]?.score ?? 0 }}
           </td>
           <td>{{ item.response.attachmentName }}</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  <section class="data-panel material-coverage-panel">
+    <div class="data-panel-header">
+      <div>
+        <h3>材料覆盖与冲突来源</h3>
+        <p>
+          当前 {{ materialSummary().materialCount }} 份材料记录，{{
+            materialSummary().pendingScope
+          }}
+          项响应待确认适用范围；定稿版本保留原材料快照。
+        </p>
+      </div>
+      <p-button
+        label="材料核验台"
+        size="small"
+        [outlined]="true"
+        routerLink="/materials"
+      />
+    </div>
+    <p-table
+      [value]="materials()"
+      [paginator]="true"
+      [rows]="6"
+      responsiveLayout="scroll"
+      styleClass="compact-table"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>材料指纹</th>
+          <th>状态</th>
+          <th>覆盖范围</th>
+          <th>已确认范围</th>
+          <th>待重评</th>
+          <th>冲突来源</th>
+          <th>修订</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-material>
+        <tr>
+          <td>
+            <span class="mono">{{ material.fingerprint }}</span>
+            <div class="table-secondary">{{ material.attachmentName }}</div>
+          </td>
+          <td><app-material-status-tag [status]="material.status" /></td>
+          <td>
+            {{ coverageSuppliers(material) || "—" }}
+            <div class="table-secondary">
+              {{ coverageClauses(material) || "暂无覆盖条款" }}
+            </div>
+          </td>
+          <td>
+            @if (material.confirmedSupplierNames.length) {
+              {{ material.confirmedSupplierNames.join("、") }}
+              <div class="table-secondary">
+                {{ material.confirmedClauseCodes.join("、") }}
+              </div>
+            } @else {
+              <span class="muted">未确认</span>
+            }
+          </td>
+          <td>
+            @if (material.pendingReReviewCount > 0) {
+              <span class="danger-text">
+                {{ material.pendingReReviewCount }} 项
+              </span>
+            } @else {
+              <span class="muted">0</span>
+            }
+          </td>
+          <td>
+            @if (material.conflicts.length) {
+              <span class="danger-text">{{ material.conflicts[0].source }}</span>
+              <div class="table-secondary">
+                {{ material.conflicts[0].actor }} · 共
+                {{ material.conflicts.length }} 起
+              </div>
+            } @else {
+              <span class="muted">无</span>
+            }
+          </td>
+          <td class="mono">R{{ material.revision }}</td>
         </tr>
       </ng-template>
     </p-table>

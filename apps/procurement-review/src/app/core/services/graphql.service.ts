@@ -6,9 +6,13 @@ import type {
   Clarification,
   ClarificationInput,
   ClarificationResponseInput,
+  ConfirmScopeInput,
+  ConfirmScopePayload,
   FinalizeVersionInput,
+  ProofMaterial,
   ReviewVersion,
   ReviewerOpinion,
+  UpdateProofMaterialInput,
   WorkspaceQueryResult,
 } from "../models/review.models";
 
@@ -39,6 +43,8 @@ const WORKSPACE_QUERY = gql`
           submittedBy
           submittedAt
           reviewRound
+          scopeConfirmed
+          needsReReview
           reviews {
             id
             responseId
@@ -48,6 +54,8 @@ const WORKSPACE_QUERY = gql`
             score
             comment
             createdAt
+            invalidatedAt
+            invalidReason
           }
           clarifications {
             id
@@ -74,6 +82,14 @@ const WORKSPACE_QUERY = gql`
         clauseCount
         responseCount
         contentHash
+        materialSnapshots {
+          materialId
+          fingerprint
+          attachmentName
+          revision
+          supplierNames
+          clauseCodes
+        }
       }
       auditLogs {
         id
@@ -91,10 +107,64 @@ const WORKSPACE_QUERY = gql`
         overdueClarifications
         reusedProofs
         activeVersion
+        materialCount
+        pendingScopeConfirmations
+        pendingReReview
+        materialConflicts
       }
       suppliers {
         id
         name
+      }
+      materials {
+        id
+        fingerprint
+        attachmentName
+        revision
+        status
+        firstSeenAt
+        updatedAt
+        coverage {
+          responseId
+          clauseId
+          clauseCode
+          clauseTitle
+          supplierId
+          supplierName
+          scopeStatus
+          needsReReview
+        }
+        confirmations {
+          id
+          materialId
+          baseRevision
+          confirmedBy
+          role
+          note
+          supplierIds
+          supplierNames
+          clauseIds
+          clauseCodes
+          createdAt
+          superseded
+        }
+        conflicts {
+          id
+          at
+          actor
+          source
+          detail
+        }
+        history {
+          revision
+          at
+          actor
+          reason
+          detail
+        }
+        pendingReReviewCount
+        confirmedSupplierNames
+        confirmedClauseCodes
       }
     }
   }
@@ -162,6 +232,51 @@ const FINALIZE_VERSION = gql`
       clauseCount
       responseCount
       contentHash
+      materialSnapshots {
+        materialId
+        fingerprint
+        attachmentName
+        revision
+        supplierNames
+        clauseCodes
+      }
+    }
+  }
+`;
+
+const CONFIRM_MATERIAL_SCOPE = gql`
+  mutation ConfirmMaterialScope($input: ConfirmScopeInput!) {
+    confirmMaterialScope(input: $input) {
+      conflict
+      message
+      currentRevision
+      confirmation {
+        id
+        materialId
+        baseRevision
+        confirmedBy
+        role
+        note
+        supplierIds
+        supplierNames
+        clauseIds
+        clauseCodes
+        createdAt
+        superseded
+      }
+    }
+  }
+`;
+
+const UPDATE_PROOF_MATERIAL = gql`
+  mutation UpdateProofMaterial($input: UpdateProofMaterialInput!) {
+    updateProofMaterial(input: $input) {
+      id
+      fingerprint
+      attachmentName
+      revision
+      status
+      updatedAt
     }
   }
 `;
@@ -258,6 +373,41 @@ export class ReviewGraphqlService {
             throw new Error("GraphQL 未返回版本信息。");
           }
           return result.data.finalizeVersion;
+        }),
+      );
+  }
+
+  confirmMaterialScope(input: ConfirmScopeInput): Observable<ConfirmScopePayload> {
+    return this.apollo
+      .mutate<{ confirmMaterialScope: ConfirmScopePayload }>({
+        mutation: CONFIRM_MATERIAL_SCOPE,
+        variables: { input },
+      })
+      .pipe(
+        map((result) => {
+          if (!result.data) {
+            throw new Error("GraphQL 未返回确认结果。");
+          }
+          return result.data.confirmMaterialScope;
+        }),
+      );
+  }
+
+  updateProofMaterial(
+    input: UpdateProofMaterialInput,
+  ): Observable<ProofMaterial> {
+    return this.apollo
+      .mutate<{ updateProofMaterial: ProofMaterial }>({
+        mutation: UPDATE_PROOF_MATERIAL,
+        variables: { input },
+        refetchQueries: ["ProcurementReviewWorkspace"],
+      })
+      .pipe(
+        map((result) => {
+          if (!result.data) {
+            throw new Error("GraphQL 未返回材料记录。");
+          }
+          return result.data.updateProofMaterial;
         }),
       );
   }

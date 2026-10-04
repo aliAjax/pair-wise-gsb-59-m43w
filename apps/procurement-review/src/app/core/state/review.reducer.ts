@@ -7,6 +7,7 @@ export const initialReviewState: ReviewState = {
   versions: [],
   auditLogs: [],
   suppliers: [],
+  materials: [],
   filters: {
     keyword: "",
     category: "",
@@ -70,11 +71,46 @@ export const reviewReducer = createReducer(
     toast: undefined,
     error: undefined,
   })),
+  on(ReviewActions.confirmMaterialScope, (state) => ({
+    ...state,
+    saving: true,
+    error: undefined,
+    toast: undefined,
+    materialFeedback: undefined,
+  })),
+  on(ReviewActions.confirmMaterialScopeSuccess, (state, { materialId }) => ({
+    ...state,
+    materialFeedback: {
+      kind: "confirmed" as const,
+      materialId,
+      message: "适用范围已确认，相关响应可进入评审。",
+    },
+  })),
+  on(
+    ReviewActions.confirmMaterialScopeFailure,
+    (state, { materialId, error, currentRevision }) => ({
+      ...state,
+      saving: false,
+      materialFeedback: {
+        kind: (currentRevision !== undefined
+          ? "conflict"
+          : "error") as "conflict" | "error",
+        materialId,
+        message: error,
+        currentRevision,
+      },
+    }),
+  ),
+  on(ReviewActions.clearMaterialFeedback, (state) => ({
+    ...state,
+    materialFeedback: undefined,
+  })),
   on(
     ReviewActions.submitAssessment,
     ReviewActions.requestClarification,
     ReviewActions.respondClarification,
     ReviewActions.finalizeVersion,
+    ReviewActions.updateProofMaterial,
     ReviewActions.resetReviewData,
     (state) => ({
       ...state,

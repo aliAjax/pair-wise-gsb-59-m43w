@@ -4,9 +4,11 @@ import type {
   ClauseFilters,
   ClarificationInput,
   ClarificationResponseInput,
+  ConfirmScopeInput,
   FinalizeVersionInput,
   ReviewRole,
   ReviewState,
+  UpdateProofMaterialInput,
 } from "../models/review.models";
 
 export const ReviewActions = createActionGroup({
@@ -16,7 +18,12 @@ export const ReviewActions = createActionGroup({
     "Load Review Data Success": props<{
       workspace: Pick<
         ReviewState,
-        "clauses" | "versions" | "auditLogs" | "dashboard" | "suppliers"
+        | "clauses"
+        | "versions"
+        | "auditLogs"
+        | "dashboard"
+        | "suppliers"
+        | "materials"
       >;
       toast?: string;
     }>(),
@@ -29,6 +36,15 @@ export const ReviewActions = createActionGroup({
     "Request Clarification": props<{ input: ClarificationInput }>(),
     "Respond Clarification": props<{ input: ClarificationResponseInput }>(),
     "Finalize Version": props<{ input: FinalizeVersionInput }>(),
+    "Confirm Material Scope": props<{ input: ConfirmScopeInput }>(),
+    "Confirm Material Scope Success": props<{ materialId: string }>(),
+    "Confirm Material Scope Failure": props<{
+      materialId: string;
+      error: string;
+      currentRevision?: number;
+    }>(),
+    "Update Proof Material": props<{ input: UpdateProofMaterialInput }>(),
+    "Clear Material Feedback": emptyProps(),
     "Reset Review Data": emptyProps(),
   },
 });

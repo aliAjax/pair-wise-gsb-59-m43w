@@ -125,25 +125,57 @@
                     <dd class="mono">{{ response.proofFingerprint }}</dd>
                   </div>
                   <div>
+                    <dt>适用范围</dt>
+                    <dd>
+                      @if (response.scopeConfirmed) {
+                        <p-tag value="已确认" severity="success" />
+                      } @else {
+                        <p-tag value="未确认" severity="warn" />
+                        <a routerLink="/materials" class="scope-link">
+                          前往核验
+                        </a>
+                      }
+                    </dd>
+                  </div>
+                  <div>
                     <dt>评审轮次</dt>
                     <dd>第 {{ response.reviewRound }} 轮</dd>
                   </div>
                 </dl>
 
+                @if (response.needsReReview) {
+                  <div class="rereview-note">
+                    <i class="pi pi-replay"></i>
+                    材料已更新，此前未定稿意见失效，该响应需重新评审。
+                  </div>
+                }
+
                 <h4>独立评审意见</h4>
                 @if (response.reviews.length) {
                   <div class="opinion-list">
                     @for (review of response.reviews; track review.id) {
-                      <article>
+                      <article [class.invalidated]="review.invalidatedAt">
                         <header>
                           <strong>{{ review.reviewer }}</strong>
                           <app-status-tag [status]="review.decision" />
                           @if (clause.type === "scoring") {
                             <span>{{ review.score }} 分</span>
                           }
+                          @if (review.invalidatedAt) {
+                            <p-tag
+                              value="已失效"
+                              severity="danger"
+                              [title]="review.invalidReason ?? ''"
+                            />
+                          }
                           <time>{{ review.createdAt | date: "MM-dd HH:mm" }}</time>
                         </header>
                         <p>{{ review.comment }}</p>
+                        @if (review.invalidReason) {
+                          <small class="invalid-reason">
+                            {{ review.invalidReason }}
+                          </small>
+                        }
                       </article>
                     }
                   </div>
@@ -201,6 +233,13 @@
                     采购人员可维护条款和发起澄清，不能代替评审员提交符合性结论。
                   </div>
                 }
+                @if (scopeBlocked()) {
+                  <div class="permission-note scope-note">
+                    该响应的证明材料尚未确认适用范围，暂不能提交独立意见。请先在
+                    <a routerLink="/materials">材料核验台</a>
+                    完成适用范围确认。
+                  </div>
+                }
                 <div class="field">
                   <label for="decision">符合性结论</label>
                   <p-select
@@ -250,7 +289,7 @@
                   type="submit"
                   label="提交独立意见"
                   icon="pi pi-check"
-                  [disabled]="!canReview()"
+                  [disabled]="!canReview() || scopeBlocked()"
                   [loading]="false"
                   styleClass="full-button"
                 />

@@ -11,6 +11,8 @@ export type ReviewRole =
   | "chair";
 export type ClarificationStatus = "open" | "responded" | "overdue";
 export type VersionStatus = "draft" | "finalized";
+export type MaterialStatus = "pending" | "confirmed" | "reconfirm";
+export type ScopeStatus = "confirmed" | "pending";
 
 export interface Clause {
   id: string;
@@ -34,6 +36,8 @@ export interface ReviewerOpinion {
   score: number;
   comment: string;
   createdAt: string;
+  invalidatedAt?: string;
+  invalidReason?: string;
 }
 
 export interface Clarification {
@@ -66,6 +70,56 @@ export interface SupplierResponse {
   clarifications: Clarification[];
 }
 
+export interface MaterialRevision {
+  revision: number;
+  at: string;
+  actor: string;
+  reason: string;
+  detail: string;
+}
+
+export interface ScopeConfirmation {
+  id: string;
+  materialId: string;
+  baseRevision: number;
+  confirmedBy: string;
+  role: ReviewRole;
+  note: string;
+  supplierIds: string[];
+  clauseIds: string[];
+  createdAt: string;
+  superseded: boolean;
+}
+
+export interface MaterialConflict {
+  id: string;
+  at: string;
+  actor: string;
+  source: string;
+  detail: string;
+}
+
+export interface ProofMaterial {
+  id: string;
+  fingerprint: string;
+  attachmentName: string;
+  revision: number;
+  firstSeenAt: string;
+  updatedAt: string;
+  history: MaterialRevision[];
+  confirmations: ScopeConfirmation[];
+  conflicts: MaterialConflict[];
+}
+
+export interface VersionMaterialSnapshot {
+  materialId: string;
+  fingerprint: string;
+  attachmentName: string;
+  revision: number;
+  supplierNames: string[];
+  clauseCodes: string[];
+}
+
 export interface ReviewVersion {
   id: string;
   version: string;
@@ -77,6 +131,7 @@ export interface ReviewVersion {
   clauseCount: number;
   responseCount: number;
   contentHash: string;
+  materialSnapshots: VersionMaterialSnapshot[];
 }
 
 export interface AuditLog {
@@ -96,6 +151,10 @@ export interface DashboardStats {
   overdueClarifications: number;
   reusedProofs: number;
   activeVersion: string;
+  materialCount: number;
+  pendingScopeConfirmations: number;
+  pendingReReview: number;
+  materialConflicts: number;
 }
 
 export interface ReviewDatabase {
@@ -104,6 +163,7 @@ export interface ReviewDatabase {
   versions: ReviewVersion[];
   auditLogs: AuditLog[];
   suppliers: Array<{ id: string; name: string }>;
+  materials: ProofMaterial[];
 }
 
 export interface AssessmentInput {
@@ -130,6 +190,26 @@ export interface ClarificationResponseInput {
 
 export interface FinalizeVersionInput {
   label: string;
+  actor: string;
+  role: ReviewRole;
+}
+
+export interface ConfirmScopeInput {
+  verificationId: string;
+  materialId: string;
+  baseRevision: number;
+  supplierIds: string[];
+  clauseIds: string[];
+  note: string;
+  actor: string;
+  role: ReviewRole;
+}
+
+export interface UpdateProofMaterialInput {
+  responseId: string;
+  attachmentName: string;
+  proofFingerprint: string;
+  note: string;
   actor: string;
   role: ReviewRole;
 }

@@ -121,6 +121,15 @@
   overflow: hidden;
 }
 
+.material-panel {
+  margin-bottom: 16px;
+}
+
+.danger-text {
+  color: #b42318;
+  font-weight: 600;
+}
+
 .empty-state {
   padding: 50px;
   color: #6f8086;

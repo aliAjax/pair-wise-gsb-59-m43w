@@ -26,6 +26,14 @@ export const appRoutes: Routes = [
     title: "批量比对",
   },
   {
+    path: "materials",
+    loadComponent: () =>
+      import("./pages/materials/materials.page").then(
+        (module) => module.MaterialsPage,
+      ),
+    title: "材料核验台",
+  },
+  {
     path: "review",
     loadComponent: () =>
       import("./pages/review/review.page").then(

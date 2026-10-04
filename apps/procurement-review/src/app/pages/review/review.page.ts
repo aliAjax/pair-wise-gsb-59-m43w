@@ -7,6 +7,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
+import { RouterLink } from "@angular/router";
 import { toSignal } from "@angular/core/rxjs-interop";
 import { Store } from "@ngrx/store";
 import { ButtonModule } from "primeng/button";
@@ -19,18 +20,22 @@ import {
   roleProfiles,
   type Clarification,
   type Clause,
+  type ProofMaterial,
   type SupplierResponse,
 } from "../../core/models/review.models";
 import { ReviewActions } from "../../core/state/review.actions";
 import {
   hasReviewDifference,
   selectClauses,
+  selectMaterials,
+  selectMaterialSummary,
   selectPendingClarifications,
   selectRole,
   selectVersions,
 } from "../../core/state/review.selectors";
 import {
   ClarificationTagComponent,
+  MaterialStatusTagComponent,
   StatusTagComponent,
   VersionTagComponent,
 } from "../../shared/status-tag.component";
@@ -47,6 +52,7 @@ interface PendingClarification {
     DatePipe,
     FormsModule,
     ReactiveFormsModule,
+    RouterLink,
     ButtonModule,
     DialogModule,
     InputTextModule,
@@ -56,6 +62,7 @@ interface PendingClarification {
     ClarificationTagComponent,
     StatusTagComponent,
     VersionTagComponent,
+    MaterialStatusTagComponent,
   ],
   templateUrl: "./review.page.html",
   styleUrl: "./review.page.scss",
@@ -94,6 +101,17 @@ export class ReviewPage {
   readonly finalizedCount = computed(
     () => this.versions().filter((version) => version.status === "finalized").length,
   );
+  readonly materials = toSignal(this.store.select(selectMaterials), {
+    initialValue: [],
+  });
+  readonly materialSummary = toSignal(this.store.select(selectMaterialSummary), {
+    initialValue: {
+      materialCount: 0,
+      pendingScope: 0,
+      pendingReReview: 0,
+      conflictCount: 0,
+    },
+  });
 
   readonly finalizeForm = new FormGroup({
     label: new FormControl("", {
@@ -111,6 +129,18 @@ export class ReviewPage {
   openFinalize(): void {
     this.finalizeForm.reset({ label: "技术响应符合性评审汇总" });
     this.finalizeVisible.set(true);
+  }
+
+  coverageSuppliers(material: ProofMaterial): string {
+    return Array.from(
+      new Set(material.coverage.map((entry) => entry.supplierName)),
+    ).join("、");
+  }
+
+  coverageClauses(material: ProofMaterial): string {
+    return Array.from(
+      new Set(material.coverage.map((entry) => entry.clauseCode)),
+    ).join("、");
   }
 
   finalizeVersion(): void {

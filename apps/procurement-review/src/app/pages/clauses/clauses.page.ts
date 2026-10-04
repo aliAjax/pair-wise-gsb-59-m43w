@@ -105,6 +105,10 @@ export class ClausesPage {
     );
   });
   readonly canReview = computed(() => this.role() !== "procurement");
+  readonly scopeBlocked = computed(() => {
+    const response = this.selectedResponse();
+    return response !== null && !response.scopeConfirmed;
+  });
   readonly clauseRisks = computed(() => {
     const clause = this.selectedClause();
     if (!clause) {
@@ -142,6 +146,12 @@ export class ClausesPage {
     });
     if (duplicatedProof.size > 0) {
       risks.push("同一证明文件在多个响应中重复使用，需要确认适用范围");
+    }
+    if (clause.responses.some((response) => !response.scopeConfirmed)) {
+      risks.push("存在响应的证明材料尚未确认适用范围，确认后才能进入评审");
+    }
+    if (clause.responses.some((response) => response.needsReReview)) {
+      risks.push("材料更新导致部分未定稿意见失效，相关响应需重新评审");
     }
     return risks;
   });
@@ -203,7 +213,7 @@ export class ClausesPage {
       this.assessmentForm.markAllAsTouched();
       return;
     }
-    if (!this.canReview()) {
+    if (!this.canReview() || this.scopeBlocked()) {
       return;
     }
     const value = this.assessmentForm.getRawValue();

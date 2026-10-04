@@ -3,6 +3,7 @@ import type {
   Clause,
   ClauseTreeNode,
   ComplianceStatus,
+  ProofMaterial,
   ReviewState,
   SupplierResponse,
 } from "../models/review.models";
@@ -33,6 +34,16 @@ export const selectDashboard = createSelector(
 export const selectSuppliers = createSelector(
   selectReviewState,
   (state) => state.suppliers,
+);
+
+export const selectMaterials = createSelector(
+  selectReviewState,
+  (state) => state.materials,
+);
+
+export const selectMaterialFeedback = createSelector(
+  selectReviewState,
+  (state) => state.materialFeedback,
 );
 
 export const selectFilters = createSelector(
@@ -70,9 +81,12 @@ export const selectToast = createSelector(
   (state) => state.toast,
 );
 
+export const activeReviews = (response: SupplierResponse) =>
+  response.reviews.filter((review) => !review.invalidatedAt);
+
 export const hasReviewDifference = (response: SupplierResponse): boolean => {
   const decisions = new Set(
-    response.reviews
+    activeReviews(response)
       .filter((review) => review.decision !== "clarification")
       .map((review) => review.decision),
   );
@@ -216,3 +230,28 @@ export const responseDecisionSummary = (
   response: SupplierResponse,
 ): ComplianceStatus[] =>
   Array.from(new Set(response.reviews.map((review) => review.decision)));
+
+export const findMaterialByFingerprint = (
+  materials: ProofMaterial[],
+  fingerprint: string,
+): ProofMaterial | undefined =>
+  materials.find((material) => material.fingerprint === fingerprint);
+
+export const selectMaterialSummary = createSelector(
+  selectMaterials,
+  selectClauses,
+  (materials, clauses) => {
+    const responses = clauses.flatMap((clause) => clause.responses);
+    return {
+      materialCount: materials.length,
+      pendingScope: responses.filter((response) => !response.scopeConfirmed)
+        .length,
+      pendingReReview: responses.filter((response) => response.needsReReview)
+        .length,
+      conflictCount: materials.reduce(
+        (count, material) => count + material.conflicts.length,
+        0,
+      ),
+    };
+  },
+);

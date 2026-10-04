@@ -50,6 +50,32 @@
         <small>需人工确认适用范围</small>
       </article>
       <article class="metric">
+        <span>材料记录</span>
+        <strong>{{ stats.materialCount }}</strong>
+        <small>按指纹首次出现归集</small>
+      </article>
+      <article class="metric">
+        <span>待确认适用范围</span>
+        <strong [class.danger]="stats.pendingScopeConfirmations > 0">
+          {{ stats.pendingScopeConfirmations }}
+        </strong>
+        <small>响应确认后才能进入评审</small>
+      </article>
+      <article class="metric">
+        <span>待重评</span>
+        <strong [class.danger]="stats.pendingReReview > 0">
+          {{ stats.pendingReReview }}
+        </strong>
+        <small>材料更新导致意见失效</small>
+      </article>
+      <article class="metric">
+        <span>材料冲突来源</span>
+        <strong [class.danger]="stats.materialConflicts > 0">
+          {{ stats.materialConflicts }}
+        </strong>
+        <small>并发确认、范围分歧与材料更新</small>
+      </article>
+      <article class="metric">
         <span>当前工作版本</span>
         <strong class="version">{{ stats.activeVersion }}</strong>
         <small>定稿后锁定快照</small>
@@ -192,6 +218,86 @@
         </ol>
       </section>
     </div>
+
+    <section class="data-panel material-panel">
+      <div class="data-panel-header">
+        <div>
+          <h3>材料覆盖与冲突来源</h3>
+          <p>需要核验或存在冲突、待重评的证明材料</p>
+        </div>
+        <p-button label="进入材料核验台" text routerLink="/materials" />
+      </div>
+      <p-table
+        [value]="materialAttention()"
+        [paginator]="true"
+        [rows]="5"
+        responsiveLayout="scroll"
+        styleClass="compact-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>材料指纹</th>
+            <th>状态</th>
+            <th>覆盖范围</th>
+            <th>已确认范围</th>
+            <th>待重评</th>
+            <th>冲突来源</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-material>
+          <tr>
+            <td>
+              <span class="mono">{{ material.fingerprint }}</span>
+              <div class="table-secondary">{{ material.attachmentName }}</div>
+            </td>
+            <td><app-material-status-tag [status]="material.status" /></td>
+            <td>
+              {{ coverageSuppliers(material) || "—" }}
+              <div class="table-secondary">
+                {{ coverageClauses(material) || "暂无覆盖条款" }}
+              </div>
+            </td>
+            <td>
+              @if (material.confirmedSupplierNames.length) {
+                {{ material.confirmedSupplierNames.join("、") }}
+                <div class="table-secondary">
+                  {{ material.confirmedClauseCodes.join("、") }}
+                </div>
+              } @else {
+                <span class="muted">未确认</span>
+              }
+            </td>
+            <td>
+              @if (material.pendingReReviewCount > 0) {
+                <span class="danger-text">
+                  {{ material.pendingReReviewCount }} 项
+                </span>
+              } @else {
+                <span class="muted">0</span>
+              }
+            </td>
+            <td>
+              @if (material.conflicts.length) {
+                <span class="danger-text">
+                  {{ material.conflicts[0].source }}
+                </span>
+                <div class="table-secondary">
+                  {{ material.conflicts[0].actor }} · 共
+                  {{ material.conflicts.length }} 起
+                </div>
+              } @else {
+                <span class="muted">无</span>
+              }
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6">所有材料均已确认适用范围，且无待重评与冲突。</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </section>
 
     <section class="data-panel clarification-panel">
       <div class="data-panel-header">

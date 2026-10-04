@@ -11,6 +11,8 @@ export type ReviewRole =
   | "chair";
 export type ClarificationStatus = "open" | "responded" | "overdue";
 export type VersionStatus = "draft" | "finalized";
+export type MaterialStatus = "pending" | "confirmed" | "reconfirm";
+export type ScopeStatus = "confirmed" | "pending";
 
 export interface ReviewerOpinion {
   id: string;
@@ -21,6 +23,8 @@ export interface ReviewerOpinion {
   score: number;
   comment: string;
   createdAt: string;
+  invalidatedAt?: string;
+  invalidReason?: string;
 }
 
 export interface Clarification {
@@ -49,6 +53,8 @@ export interface SupplierResponse {
   submittedBy: string;
   submittedAt: string;
   reviewRound: number;
+  scopeConfirmed: boolean;
+  needsReReview: boolean;
   reviews: ReviewerOpinion[];
   clarifications: Clarification[];
 }
@@ -72,6 +78,74 @@ export interface ClauseTreeNode extends Clause {
   children: ClauseTreeNode[];
 }
 
+export interface MaterialRevision {
+  revision: number;
+  at: string;
+  actor: string;
+  reason: string;
+  detail: string;
+}
+
+export interface ScopeConfirmation {
+  id: string;
+  materialId: string;
+  baseRevision: number;
+  confirmedBy: string;
+  role: ReviewRole;
+  note: string;
+  supplierIds: string[];
+  supplierNames: string[];
+  clauseIds: string[];
+  clauseCodes: string[];
+  createdAt: string;
+  superseded: boolean;
+}
+
+export interface MaterialConflict {
+  id: string;
+  at: string;
+  actor: string;
+  source: string;
+  detail: string;
+}
+
+export interface MaterialCoverage {
+  responseId: string;
+  clauseId: string;
+  clauseCode: string;
+  clauseTitle: string;
+  supplierId: string;
+  supplierName: string;
+  scopeStatus: ScopeStatus;
+  needsReReview: boolean;
+}
+
+export interface ProofMaterial {
+  id: string;
+  fingerprint: string;
+  attachmentName: string;
+  revision: number;
+  status: MaterialStatus;
+  firstSeenAt: string;
+  updatedAt: string;
+  coverage: MaterialCoverage[];
+  confirmations: ScopeConfirmation[];
+  conflicts: MaterialConflict[];
+  history: MaterialRevision[];
+  pendingReReviewCount: number;
+  confirmedSupplierNames: string[];
+  confirmedClauseCodes: string[];
+}
+
+export interface VersionMaterialSnapshot {
+  materialId: string;
+  fingerprint: string;
+  attachmentName: string;
+  revision: number;
+  supplierNames: string[];
+  clauseCodes: string[];
+}
+
 export interface ReviewVersion {
   id: string;
   version: string;
@@ -83,6 +157,7 @@ export interface ReviewVersion {
   clauseCount: number;
   responseCount: number;
   contentHash: string;
+  materialSnapshots: VersionMaterialSnapshot[];
 }
 
 export interface AuditLog {
@@ -102,6 +177,10 @@ export interface DashboardStats {
   overdueClarifications: number;
   reusedProofs: number;
   activeVersion: string;
+  materialCount: number;
+  pendingScopeConfirmations: number;
+  pendingReReview: number;
+  materialConflicts: number;
 }
 
 export interface Supplier {
@@ -116,12 +195,20 @@ export interface ClauseFilters {
   differencesOnly: boolean;
 }
 
+export interface MaterialFeedback {
+  kind: "confirmed" | "conflict" | "error";
+  materialId: string;
+  message: string;
+  currentRevision?: number;
+}
+
 export interface ReviewState {
   clauses: Clause[];
   versions: ReviewVersion[];
   auditLogs: AuditLog[];
   dashboard?: DashboardStats;
   suppliers: Supplier[];
+  materials: ProofMaterial[];
   filters: ClauseFilters;
   role: ReviewRole;
   selectedSupplierIds: string[];
@@ -129,6 +216,7 @@ export interface ReviewState {
   saving: boolean;
   error?: string;
   toast?: string;
+  materialFeedback?: MaterialFeedback;
 }
 
 export interface WorkspaceQueryResult {
@@ -138,6 +226,7 @@ export interface WorkspaceQueryResult {
     auditLogs: AuditLog[];
     dashboard: DashboardStats;
     suppliers: Supplier[];
+    materials: ProofMaterial[];
   };
 }
 
@@ -169,6 +258,33 @@ export interface FinalizeVersionInput {
   role: ReviewRole;
 }
 
+export interface ConfirmScopeInput {
+  verificationId: string;
+  materialId: string;
+  baseRevision: number;
+  supplierIds: string[];
+  clauseIds: string[];
+  note: string;
+  actor: string;
+  role: ReviewRole;
+}
+
+export interface ConfirmScopePayload {
+  confirmation: ScopeConfirmation | null;
+  conflict: boolean;
+  message: string;
+  currentRevision?: number;
+}
+
+export interface UpdateProofMaterialInput {
+  responseId: string;
+  attachmentName: string;
+  proofFingerprint: string;
+  note: string;
+  actor: string;
+  role: ReviewRole;
+}
+
 export const roleProfiles: Record<ReviewRole, { name: string; label: string }> = {
   procurement: { name: "采购专员", label: "采购人员" },
   reviewer_a: { name: "陈评审", label: "技术评审员 A" },
@@ -187,6 +303,12 @@ export const clauseTypeLabels: Record<ClauseType, string> = {
   mandatory: "否决项",
   scoring: "评分项",
   evidence: "证明项",
+};
+
+export const materialStatusLabels: Record<MaterialStatus, string> = {
+  pending: "待确认",
+  confirmed: "已确认",
+  reconfirm: "待重新确认",
 };
 
 export const statusSeverity: Record<ComplianceStatus, string> = {

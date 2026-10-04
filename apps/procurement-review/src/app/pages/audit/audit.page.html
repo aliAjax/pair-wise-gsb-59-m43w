@@ -23,7 +23,13 @@
       <p-button
         label="导出 CSV"
         icon="pi pi-file-export"
+        [outlined]="true"
         (onClick)="exportCsv()"
+      />
+      <p-button
+        label="导出材料核验 CSV"
+        icon="pi pi-file-export"
+        (onClick)="exportMaterialsCsv()"
       />
     </div>
   </header>
@@ -40,6 +46,25 @@
     <article>
       <span>当前导出条数</span>
       <strong>{{ filteredLogs().length }}</strong>
+    </article>
+    <article>
+      <span>材料记录</span>
+      <strong>{{ materialSummary().materialCount }}</strong>
+      <small>{{ materialSummary().pendingScope }} 项响应待确认范围</small>
+    </article>
+    <article>
+      <span>待重评</span>
+      <strong [class.danger]="materialSummary().pendingReReview > 0">
+        {{ materialSummary().pendingReReview }}
+      </strong>
+      <small>材料更新导致意见失效</small>
+    </article>
+    <article>
+      <span>冲突来源</span>
+      <strong [class.danger]="materialSummary().conflictCount > 0">
+        {{ materialSummary().conflictCount }}
+      </strong>
+      <small>并发确认、范围分歧与材料更新</small>
     </article>
     <article class="version-card">
       <span>最近定稿</span>

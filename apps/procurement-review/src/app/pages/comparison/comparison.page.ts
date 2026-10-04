@@ -14,14 +14,17 @@ import {
   clauseTypeLabels,
   type Clause,
   type ClauseType,
+  type ProofMaterial,
   type SupplierResponse,
 } from "../../core/models/review.models";
 import { ReviewActions } from "../../core/state/review.actions";
 import {
+  findMaterialByFingerprint,
   hasReviewDifference,
   selectClauses,
   selectFilteredClauses,
   selectFilters,
+  selectMaterials,
   selectSelectedSupplierIds,
   selectSuppliers,
 } from "../../core/state/review.selectors";
@@ -70,6 +73,9 @@ export class ComparisonPage {
   readonly suppliers = toSignal(this.store.select(selectSuppliers), {
     initialValue: [],
   });
+  readonly materials = toSignal(this.store.select(selectMaterials), {
+    initialValue: [],
+  });
   readonly selectedSupplierIds = toSignal(
     this.store.select(selectSelectedSupplierIds),
     { initialValue: [] },
@@ -114,6 +120,25 @@ export class ComparisonPage {
       Array.from(this.proofCounts().values()).filter((count) => count > 1)
         .length,
   );
+  readonly unconfirmedScopeCount = computed(
+    () =>
+      this.clauses()
+        .flatMap((clause) => clause.responses)
+        .filter((response) => !response.scopeConfirmed).length,
+  );
+  readonly pendingReReviewCount = computed(
+    () =>
+      this.clauses()
+        .flatMap((clause) => clause.responses)
+        .filter((response) => response.needsReReview).length,
+  );
+  readonly materialConflictCount = computed(
+    () =>
+      this.materials().reduce(
+        (count, material) => count + material.conflicts.length,
+        0,
+      ),
+  );
 
   updateFilter(partial: {
     keyword?: string;
@@ -154,5 +179,34 @@ export class ComparisonPage {
 
   hasReusedProof(clause: Clause): boolean {
     return clause.responses.some((response) => this.isReusedProof(response));
+  }
+
+  materialFor(response: SupplierResponse | undefined): ProofMaterial | undefined {
+    return response
+      ? findMaterialByFingerprint(this.materials(), response.proofFingerprint)
+      : undefined;
+  }
+
+  conflictSource(response: SupplierResponse | undefined): string | undefined {
+    const material = this.materialFor(response);
+    if (!material || material.conflicts.length === 0) {
+      return undefined;
+    }
+    const latest = material.conflicts[0];
+    return `${latest.source}（${latest.actor}）`;
+  }
+
+  hasScopeGap(clause: Clause): boolean {
+    return clause.responses.some((response) => !response.scopeConfirmed);
+  }
+
+  hasReReview(clause: Clause): boolean {
+    return clause.responses.some((response) => response.needsReReview);
+  }
+
+  hasMaterialConflict(clause: Clause): boolean {
+    return clause.responses.some(
+      (response) => this.conflictSource(response) !== undefined,
+    );
   }
 }

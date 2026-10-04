@@ -1,14 +1,21 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  buildMaterialsFromResponses,
+  snapshotMaterials,
+} from "./materials";
 import type {
   AuditLog,
   Clarification,
   Clause,
   ComplianceStatus,
+  ProofMaterial,
   ReviewDatabase,
   ReviewRole,
   ReviewerOpinion,
+  ScopeConfirmation,
   SupplierResponse,
+  VersionMaterialSnapshot,
 } from "./types";
 
 const clauses: Clause[] = [
@@ -369,33 +376,6 @@ const responses: SupplierResponse[] = clauses.flatMap((clause, clauseIndex) =>
   ),
 );
 
-const versions = [
-  {
-    id: "VER-001",
-    version: "V1",
-    label: "初审问题定位版本",
-    status: "finalized" as const,
-    createdAt: "2026-09-25T17:30:00+08:00",
-    createdBy: "采购工作组",
-    signedBy: ["采购负责人", "技术评审组长"],
-    clauseCount: clauses.length,
-    responseCount: responses.length,
-    contentHash: "a84f2d17",
-  },
-  {
-    id: "VER-002",
-    version: "V2",
-    label: "澄清与评分复核工作版",
-    status: "draft" as const,
-    createdAt: "2026-09-29T08:10:00+08:00",
-    createdBy: "采购工作组",
-    signedBy: [],
-    clauseCount: clauses.length,
-    responseCount: responses.length,
-    contentHash: "d91c6b42",
-  },
-];
-
 const auditLogs: AuditLog[] = [
   {
     id: "AUD-001",
@@ -431,13 +411,138 @@ const auditLogs: AuditLog[] = [
   },
 ];
 
-const buildSeed = (): ReviewDatabase => ({
-  clauses: structuredClone(clauses),
-  responses: structuredClone(responses),
-  versions: structuredClone(versions),
-  auditLogs: structuredClone(auditLogs),
-  suppliers: structuredClone(suppliers),
-});
+interface SeedConfirmation {
+  fingerprint: string;
+  confirmation: Omit<ScopeConfirmation, "materialId" | "superseded">;
+  conflict?: { at: string; actor: string; source: string; detail: string };
+}
+
+const seedConfirmations: SeedConfirmation[] = [
+  {
+    fingerprint: "PROOF-SEC-CERT-2026",
+    confirmation: {
+      id: "VERI-SEED-001",
+      baseRevision: 1,
+      confirmedBy: "采购专员",
+      role: "procurement",
+      note: "同一份等保测评材料同时支撑接口开放与等保备案两个条款，确认对华云数科适用。",
+      supplierIds: ["SUP-A"],
+      clauseIds: ["C005", "C008"],
+      createdAt: "2026-09-26T10:00:00+08:00",
+    },
+  },
+  {
+    fingerprint: "PROOF-SEC-CERT-2026",
+    confirmation: {
+      id: "VERI-SEED-002",
+      baseRevision: 2,
+      confirmedBy: "赵主任",
+      role: "chair",
+      note: "仅确认等保备案条款适用，接口开放条款需补充协议版本说明后再确认。",
+      supplierIds: ["SUP-A"],
+      clauseIds: ["C008"],
+      createdAt: "2026-09-27T09:30:00+08:00",
+    },
+    conflict: {
+      at: "2026-09-27T09:30:00+08:00",
+      actor: "赵主任",
+      source: "适用范围分歧",
+      detail:
+        "赵主任确认范围（1 条条款）与采购专员确认范围（2 条条款）不一致，需采购组核对后统一。",
+    },
+  },
+  {
+    fingerprint: "PROOF-PLAN-A",
+    confirmation: {
+      id: "VERI-SEED-003",
+      baseRevision: 1,
+      confirmedBy: "采购专员",
+      role: "procurement",
+      note: "项目组织方案覆盖实施组织与项目计划条款，确认对华云数科适用。",
+      supplierIds: ["SUP-A"],
+      clauseIds: ["C001"],
+      createdAt: "2026-09-26T11:00:00+08:00",
+    },
+  },
+];
+
+const applySeedConfirmation = (
+  materials: ProofMaterial[],
+  seed: SeedConfirmation,
+): void => {
+  const material = materials.find(
+    (item) => item.fingerprint === seed.fingerprint,
+  );
+  if (!material) {
+    return;
+  }
+  material.confirmations.unshift({
+    ...seed.confirmation,
+    materialId: material.id,
+    superseded: false,
+  });
+  material.revision += 1;
+  material.updatedAt = seed.confirmation.createdAt;
+  material.history.unshift({
+    revision: material.revision,
+    at: seed.confirmation.createdAt,
+    actor: seed.confirmation.confirmedBy,
+    reason: "确认适用范围",
+    detail: seed.confirmation.note,
+  });
+  if (seed.conflict) {
+    material.conflicts.unshift({
+      id: `CON-${material.id}-${String(material.conflicts.length + 1).padStart(3, "0")}`,
+      ...seed.conflict,
+    });
+  }
+};
+
+const buildSeed = (): ReviewDatabase => {
+  const database: ReviewDatabase = {
+    clauses: structuredClone(clauses),
+    responses: structuredClone(responses),
+    versions: [],
+    auditLogs: structuredClone(auditLogs),
+    suppliers: structuredClone(suppliers),
+    materials: [],
+  };
+  database.materials = buildMaterialsFromResponses(database);
+  const sealedSnapshots: VersionMaterialSnapshot[] =
+    snapshotMaterials(database);
+  seedConfirmations.forEach((seed) =>
+    applySeedConfirmation(database.materials, seed),
+  );
+  database.versions = [
+    {
+      id: "VER-001",
+      version: "V1",
+      label: "初审问题定位版本",
+      status: "finalized" as const,
+      createdAt: "2026-09-25T17:30:00+08:00",
+      createdBy: "采购工作组",
+      signedBy: ["采购负责人", "技术评审组长"],
+      clauseCount: clauses.length,
+      responseCount: responses.length,
+      contentHash: "a84f2d17",
+      materialSnapshots: sealedSnapshots,
+    },
+    {
+      id: "VER-002",
+      version: "V2",
+      label: "澄清与评分复核工作版",
+      status: "draft" as const,
+      createdAt: "2026-09-29T08:10:00+08:00",
+      createdBy: "采购工作组",
+      signedBy: [],
+      clauseCount: clauses.length,
+      responseCount: responses.length,
+      contentHash: "d91c6b42",
+      materialSnapshots: [],
+    },
+  ];
+  return database;
+};
 
 class ReviewDataStore {
   private readonly runtimePath = join(process.cwd(), "server", "runtime-data.json");
@@ -446,9 +551,10 @@ class ReviewDataStore {
   constructor() {
     if (existsSync(this.runtimePath)) {
       try {
-        this.data = JSON.parse(
+        const parsed = JSON.parse(
           readFileSync(this.runtimePath, "utf8"),
         ) as ReviewDatabase;
+        this.data = Array.isArray(parsed.materials) ? parsed : buildSeed();
       } catch {
         this.data = buildSeed();
       }
@@ -498,3 +604,9 @@ export const createOpinionId = (): string =>
 
 export const createClarificationId = (): string =>
   `CL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+export const createMaterialId = (): string =>
+  `MAT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+export const createConflictId = (): string =>
+  `CON-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

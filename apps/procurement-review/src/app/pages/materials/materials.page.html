@@ -1,0 +1,477 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>证明材料适用范围核验台</h2>
+      <p>
+        同一指纹首次出现即汇成材料记录；供应商响应确认适用范围后才进入评审，材料更新后未定稿意见失效。
+      </p>
+    </div>
+    @if (!canVerify()) {
+      <p class="role-note">当前角色仅可查看，确认与更新由采购人员或评审组长执行。</p>
+    }
+  </header>
+
+  <div class="metric-grid">
+    <article class="metric">
+      <span>材料记录</span>
+      <strong>{{ summary().materialCount }}</strong>
+      <small>按指纹首次出现归集</small>
+    </article>
+    <article class="metric">
+      <span>待确认适用范围</span>
+      <strong [class.danger]="summary().pendingScope > 0">
+        {{ summary().pendingScope }}
+      </strong>
+      <small>响应确认后才能进入评审</small>
+    </article>
+    <article class="metric">
+      <span>待重评</span>
+      <strong [class.danger]="summary().pendingReReview > 0">
+        {{ summary().pendingReReview }}
+      </strong>
+      <small>材料更新导致未定稿意见失效</small>
+    </article>
+    <article class="metric">
+      <span>冲突来源</span>
+      <strong [class.danger]="summary().conflictCount > 0">
+        {{ summary().conflictCount }}
+      </strong>
+      <small>并发确认、范围分歧与材料更新</small>
+    </article>
+  </div>
+
+  <section class="data-panel">
+    <div class="data-panel-header">
+      <div>
+        <h3>材料记录与覆盖范围</h3>
+        <p>展开可查看覆盖明细、核验单、冲突记录和修订历史</p>
+      </div>
+    </div>
+    <p-table
+      [value]="materials()"
+      dataKey="id"
+      responsiveLayout="scroll"
+      styleClass="compact-table"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th style="width: 3rem"></th>
+          <th>材料指纹 / 附件</th>
+          <th>状态</th>
+          <th>覆盖范围</th>
+          <th>已确认范围</th>
+          <th>待重评</th>
+          <th>冲突来源</th>
+          <th>修订</th>
+          <th>操作</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-material>
+        <tr>
+          <td>
+            <button
+              type="button"
+              pButton
+              [pRowToggler]="material"
+              class="p-button-text p-button-rounded p-button-plain row-toggler"
+              [attr.aria-label]="'展开材料明细'"
+            >
+              <i class="pi pi-chevron-down"></i>
+            </button>
+          </td>
+          <td>
+            <span class="mono">{{ material.fingerprint }}</span>
+            <div class="table-secondary">{{ material.attachmentName }}</div>
+          </td>
+          <td><app-material-status-tag [status]="material.status" /></td>
+          <td>
+            {{ coverageSuppliers(material) || "—" }}
+            <div class="table-secondary">
+              {{ coverageClauses(material) || "暂无覆盖条款" }}
+            </div>
+          </td>
+          <td>
+            @if (material.confirmedSupplierNames.length) {
+              {{ material.confirmedSupplierNames.join("、") }}
+              <div class="table-secondary">
+                {{ material.confirmedClauseCodes.join("、") }}
+              </div>
+            } @else {
+              <span class="muted">未确认</span>
+            }
+          </td>
+          <td>
+            @if (material.pendingReReviewCount > 0) {
+              <span class="danger-text">
+                {{ material.pendingReReviewCount }} 项
+              </span>
+            } @else {
+              <span class="muted">0</span>
+            }
+          </td>
+          <td>
+            @if (material.conflicts.length) {
+              <span class="danger-text">{{ material.conflicts.length }} 起</span>
+              <div class="table-secondary">
+                最新：{{ material.conflicts[0].source }}
+              </div>
+            } @else {
+              <span class="muted">无</span>
+            }
+          </td>
+          <td class="mono">R{{ material.revision }}</td>
+          <td>
+            <div class="inline-actions">
+              <p-button
+                label="确认适用范围"
+                size="small"
+                [disabled]="!canVerify()"
+                (onClick)="openConfirm(material)"
+              />
+              <p-button
+                label="更新附件/指纹"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [disabled]="!canVerify()"
+                (onClick)="openUpdate(material)"
+              />
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="expandedrow" let-material>
+        <tr>
+          <td colspan="9" class="expanded-cell">
+            <div class="expanded-grid">
+              <section>
+                <h4>覆盖明细（{{ material.coverage.length }} 项响应）</h4>
+                <table class="mini-table">
+                  <thead>
+                    <tr>
+                      <th>条款</th>
+                      <th>供应商</th>
+                      <th>范围状态</th>
+                      <th>重评</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (entry of material.coverage; track entry.responseId) {
+                      <tr>
+                        <td>
+                          <span class="mono">{{ entry.clauseCode }}</span>
+                          {{ entry.clauseTitle }}
+                        </td>
+                        <td>{{ entry.supplierName }}</td>
+                        <td>
+                          <p-tag
+                            [value]="
+                              entry.scopeStatus === 'confirmed'
+                                ? '已确认'
+                                : '待确认'
+                            "
+                            [severity]="
+                              entry.scopeStatus === 'confirmed'
+                                ? 'success'
+                                : 'warn'
+                            "
+                          />
+                        </td>
+                        <td>
+                          @if (entry.needsReReview) {
+                            <p-tag value="待重评" severity="danger" />
+                          } @else {
+                            <span class="muted">—</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </section>
+              <section>
+                <h4>核验单记录</h4>
+                @if (material.confirmations.length) {
+                  <ul class="record-list">
+                    @for (
+                      confirmation of material.confirmations;
+                      track confirmation.id
+                    ) {
+                      <li>
+                        <header>
+                          <span class="mono">{{ confirmation.id }}</span>
+                          @if (confirmation.superseded) {
+                            <p-tag value="已失效" severity="danger" />
+                          } @else {
+                            <p-tag value="有效" severity="success" />
+                          }
+                        </header>
+                        <p>
+                          {{ confirmation.confirmedBy }} 确认覆盖
+                          {{ confirmation.supplierNames.join("、") }} 的
+                          {{ confirmation.clauseCodes.join("、") }}
+                        </p>
+                        <small>
+                          基于修订 R{{ confirmation.baseRevision }} ·
+                          {{ confirmation.createdAt | date: "yyyy-MM-dd HH:mm" }}
+                        </small>
+                        <p class="muted">{{ confirmation.note }}</p>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="muted">尚无核验单。</p>
+                }
+              </section>
+              <section>
+                <h4>冲突记录</h4>
+                @if (material.conflicts.length) {
+                  <ul class="record-list">
+                    @for (conflict of material.conflicts; track conflict.id) {
+                      <li>
+                        <header>
+                          <span class="conflict-source">
+                            {{ conflict.source }}
+                          </span>
+                          <strong>{{ conflict.actor }}</strong>
+                        </header>
+                        <p>{{ conflict.detail }}</p>
+                        <small>
+                          {{ conflict.at | date: "yyyy-MM-dd HH:mm" }}
+                        </small>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="muted">没有冲突记录。</p>
+                }
+              </section>
+              <section>
+                <h4>修订历史</h4>
+                <ul class="record-list">
+                  @for (revision of material.history; track revision.revision) {
+                    <li>
+                      <header>
+                        <span class="mono">R{{ revision.revision }}</span>
+                        <strong>{{ revision.reason }}</strong>
+                      </header>
+                      <p>{{ revision.detail }}</p>
+                      <small>
+                        {{ revision.actor }} ·
+                        {{ revision.at | date: "yyyy-MM-dd HH:mm" }}
+                      </small>
+                    </li>
+                  }
+                </ul>
+              </section>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="9">暂无材料记录，响应提交后按指纹自动归集。</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </section>
+</section>
+
+<p-dialog
+  header="确认材料适用范围"
+  [modal]="true"
+  [visible]="confirmVisible()"
+  (visibleChange)="confirmVisible.set($event)"
+  [style]="{ width: 'min(640px, 94vw)' }"
+>
+  @if (confirmMaterial(); as material) {
+    <div class="dialog-context">
+      <div>
+        <span>材料指纹</span>
+        <strong class="mono">{{ material.fingerprint }}</strong>
+      </div>
+      <div>
+        <span>附件</span>
+        <strong>{{ material.attachmentName }}</strong>
+      </div>
+      <div>
+        <span>当前修订</span>
+        <strong class="mono">R{{ material.revision }}</strong>
+      </div>
+      <div>
+        <span>核验单编号</span>
+        <strong class="mono">{{ verificationId() }}</strong>
+      </div>
+    </div>
+
+    @if (confirmFeedback(); as feedback) {
+      @if (feedback.kind === "conflict") {
+        <div class="feedback-banner conflict">
+          <i class="pi pi-exclamation-triangle"></i>
+          <div>
+            <strong>材料已变化</strong>
+            <p>{{ feedback.message }}</p>
+          </div>
+        </div>
+      } @else if (feedback.kind === "error") {
+        <div class="feedback-banner error">
+          <i class="pi pi-times-circle"></i>
+          <div>
+            <strong>保存失败</strong>
+            <p>{{ feedback.message }} 可沿用当前核验单编号重试，不会重复记录。</p>
+          </div>
+        </div>
+      }
+    }
+
+    <div class="field">
+      <label>适用供应商（{{ confirmSupplierIds().length }} 家）</label>
+      <div class="check-grid">
+        @for (supplier of confirmSuppliers(); track supplier.id) {
+          <label class="check-item">
+            <p-checkbox
+              [binary]="true"
+              [ngModel]="confirmSupplierIds().includes(supplier.id)"
+              (ngModelChange)="toggleConfirmSupplier(supplier.id, $event)"
+            />
+            <span>{{ supplier.name }}</span>
+          </label>
+        }
+      </div>
+    </div>
+    <div class="field">
+      <label>适用条款（{{ confirmClauseIds().length }} 条）</label>
+      <div class="check-grid">
+        @for (clause of confirmClauses(); track clause.id) {
+          <label class="check-item">
+            <p-checkbox
+              [binary]="true"
+              [ngModel]="confirmClauseIds().includes(clause.id)"
+              (ngModelChange)="toggleConfirmClause(clause.id, $event)"
+            />
+            <span>{{ clause.label }}</span>
+          </label>
+        }
+      </div>
+      <small>确认范围不能超出材料实际覆盖的供应商与条款。</small>
+    </div>
+    <div class="field">
+      <label for="confirm-note">确认说明</label>
+      <textarea
+        id="confirm-note"
+        pTextarea
+        [formControl]="confirmNote"
+        rows="4"
+        placeholder="说明该材料为何覆盖所选供应商与条款"
+      ></textarea>
+      @if (confirmNote.touched && confirmNote.invalid) {
+        <small class="error">确认说明至少需要 6 个字符。</small>
+      }
+    </div>
+    <div class="inline-actions dialog-actions">
+      <p-button
+        label="取消"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="confirmVisible.set(false)"
+      />
+      <p-button
+        label="提交确认"
+        icon="pi pi-check"
+        [loading]="saving()"
+        [disabled]="
+          !canVerify() ||
+          confirmSupplierIds().length === 0 ||
+          confirmClauseIds().length === 0
+        "
+        (onClick)="submitConfirm()"
+      />
+    </div>
+  }
+</p-dialog>
+
+<p-dialog
+  header="更新附件 / 指纹"
+  [modal]="true"
+  [visible]="updateVisible()"
+  (visibleChange)="updateVisible.set($event)"
+  [style]="{ width: 'min(640px, 94vw)' }"
+>
+  @if (updateMaterial(); as material) {
+    <div class="dialog-context">
+      <div>
+        <span>材料指纹</span>
+        <strong class="mono">{{ material.fingerprint }}</strong>
+      </div>
+      <div>
+        <span>当前修订</span>
+        <strong class="mono">R{{ material.revision }}</strong>
+      </div>
+    </div>
+    <div class="feedback-banner warning">
+      <i class="pi pi-info-circle"></i>
+      <div>
+        <strong>更新影响</strong>
+        <p>
+          更新后相关响应的未定稿意见立即失效并进入待重评，既有适用范围确认需重新核验；已定稿（盖章）版本继续保留原材料快照。
+        </p>
+      </div>
+    </div>
+    <div class="field">
+      <label for="update-response">变更的供应商响应</label>
+      <p-select
+        inputId="update-response"
+        [options]="updateResponseOptions()"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="updateResponseId()"
+        (ngModelChange)="updateResponseChanged($event)"
+        appendTo="body"
+      />
+    </div>
+    <div class="field">
+      <label for="update-attachment">新附件名称</label>
+      <input
+        id="update-attachment"
+        pInputText
+        [formControl]="updateAttachment"
+        placeholder="例如：安全测评报告-V2.pdf"
+      />
+    </div>
+    <div class="field">
+      <label for="update-fingerprint">新证明指纹</label>
+      <input
+        id="update-fingerprint"
+        pInputText
+        [formControl]="updateFingerprint"
+        placeholder="指纹变化时将首次归集为新材料记录"
+      />
+      <small>新指纹首次出现会自动汇成新的材料记录。</small>
+    </div>
+    <div class="field">
+      <label for="update-note">更新说明（可选）</label>
+      <textarea
+        id="update-note"
+        pTextarea
+        [formControl]="updateNote"
+        rows="3"
+        placeholder="说明附件或指纹变更原因"
+      ></textarea>
+    </div>
+    <div class="inline-actions dialog-actions">
+      <p-button
+        label="取消"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="updateVisible.set(false)"
+      />
+      <p-button
+        label="确认更新"
+        icon="pi pi-upload"
+        severity="warn"
+        [disabled]="!canVerify()"
+        (onClick)="submitUpdate()"
+      />
+    </div>
+  }
+</p-dialog>

@@ -1,6 +1,6 @@
 import { Injectable, inject } from "@angular/core";
 import { Actions, createEffect, ofType } from "@ngrx/effects";
-import { catchError, map, of, switchMap } from "rxjs";
+import { catchError, map, mergeMap, of, switchMap } from "rxjs";
 import { ReviewGraphqlService } from "../services/graphql.service";
 import { ReviewActions } from "./review.actions";
 
@@ -142,6 +142,71 @@ export class ReviewEffects {
             ReviewActions.loadReviewDataSuccess({
               workspace,
               toast: "评审演示数据已恢复。",
+            }),
+          ),
+          catchError((error: unknown) =>
+            of(
+              ReviewActions.loadReviewDataFailure({
+                error: errorMessage(error),
+              }),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  confirmMaterialScope$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(ReviewActions.confirmMaterialScope),
+      switchMap(({ input }) =>
+        this.graphql.confirmMaterialScope(input).pipe(
+          switchMap((payload) => {
+            if (payload.conflict) {
+              return [
+                ReviewActions.confirmMaterialScopeFailure({
+                  materialId: input.materialId,
+                  error: payload.message,
+                  currentRevision: payload.currentRevision,
+                }),
+                ReviewActions.loadReviewData(),
+              ];
+            }
+            return this.graphql.loadWorkspace().pipe(
+              mergeMap(({ workspace }) => [
+                ReviewActions.confirmMaterialScopeSuccess({
+                  materialId: input.materialId,
+                }),
+                ReviewActions.loadReviewDataSuccess({
+                  workspace,
+                  toast: payload.message || "适用范围已确认，相关响应可进入评审。",
+                }),
+              ]),
+            );
+          }),
+          catchError((error: unknown) =>
+            of(
+              ReviewActions.confirmMaterialScopeFailure({
+                materialId: input.materialId,
+                error: errorMessage(error),
+              }),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  updateProofMaterial$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(ReviewActions.updateProofMaterial),
+      switchMap(({ input }) =>
+        this.graphql.updateProofMaterial(input).pipe(
+          switchMap(() => this.graphql.loadWorkspace()),
+          map(({ workspace }) =>
+            ReviewActions.loadReviewDataSuccess({
+              workspace,
+              toast: "证明材料已更新，未定稿意见失效，相关响应进入待重评。",
             }),
           ),
           catchError((error: unknown) =>

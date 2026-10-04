@@ -1,6 +1,6 @@
 .version-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(6, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 
@@ -39,6 +39,16 @@
 .versions-panel,
 .difference-panel {
   overflow: hidden;
+}
+
+.material-coverage-panel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.danger-text {
+  color: #b42318;
+  font-weight: 600;
 }
 
 .clarification-cards {

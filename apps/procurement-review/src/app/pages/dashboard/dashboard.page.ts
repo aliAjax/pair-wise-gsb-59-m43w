@@ -10,6 +10,7 @@ import { TagModule } from "primeng/tag";
 import {
   type Clause,
   type Clarification,
+  type ProofMaterial,
   type SupplierResponse,
 } from "../../core/models/review.models";
 import {
@@ -19,12 +20,14 @@ import {
   selectDashboard,
   selectError,
   selectLoading,
+  selectMaterials,
   selectPendingClarifications,
   selectRole,
   selectVersions,
 } from "../../core/state/review.selectors";
 import {
   ClarificationTagComponent,
+  MaterialStatusTagComponent,
   StatusTagComponent,
 } from "../../shared/status-tag.component";
 
@@ -45,6 +48,7 @@ interface PendingIssue {
     TagModule,
     StatusTagComponent,
     ClarificationTagComponent,
+    MaterialStatusTagComponent,
   ],
   templateUrl: "./dashboard.page.html",
   styleUrl: "./dashboard.page.scss",
@@ -78,6 +82,19 @@ export class DashboardPage {
     this.store.select(selectPendingClarifications),
     { initialValue: [] as PendingIssue[] },
   );
+  readonly materials = toSignal(this.store.select(selectMaterials), {
+    initialValue: [],
+  });
+  readonly materialAttention = computed(() =>
+    this.materials()
+      .filter(
+        (material) =>
+          material.status !== "confirmed" ||
+          material.pendingReReviewCount > 0 ||
+          material.conflicts.length > 0,
+      )
+      .slice(0, 8),
+  );
   readonly differences = computed(() =>
     this.clauses().flatMap((clause) =>
       clause.responses
@@ -104,8 +121,22 @@ export class DashboardPage {
       return 0;
     }
     const reviewed = clauses.filter((clause) =>
-      clause.responses.every((response) => response.reviews.length > 0),
+      clause.responses.every((response) =>
+        response.reviews.some((review) => !review.invalidatedAt),
+      ),
     ).length;
     return Math.round((reviewed / clauses.length) * 100);
   });
+
+  coverageSuppliers(material: ProofMaterial): string {
+    return Array.from(
+      new Set(material.coverage.map((entry) => entry.supplierName)),
+    ).join("、");
+  }
+
+  coverageClauses(material: ProofMaterial): string {
+    return Array.from(
+      new Set(material.coverage.map((entry) => entry.clauseCode)),
+    ).join("、");
+  }
 }

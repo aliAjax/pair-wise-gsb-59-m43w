@@ -233,6 +233,38 @@ h4 {
   line-height: 1.5;
 }
 
+.scope-note a,
+.scope-link {
+  color: #9a3412;
+  font-weight: 600;
+}
+
+.rereview-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid #f3c2bb;
+  border-radius: 6px;
+  background: #fff5f4;
+  color: #8f2118;
+  font-size: 12px;
+}
+
+.opinion-list article.invalidated {
+  border-style: dashed;
+  background: #faf7f6;
+  opacity: 0.82;
+}
+
+.invalid-reason {
+  display: block;
+  margin-top: 6px;
+  color: #a4261d;
+  font-size: 11px;
+}
+
 .error {
   color: #b42318;
 }

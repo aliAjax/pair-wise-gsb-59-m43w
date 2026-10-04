@@ -32,6 +32,17 @@ export const typeDefs = parse(`
     finalized
   }
 
+  enum MaterialStatus {
+    pending
+    confirmed
+    reconfirm
+  }
+
+  enum ScopeStatus {
+    confirmed
+    pending
+  }
+
   type Clause {
     id: ID!
     code: String!
@@ -55,6 +66,8 @@ export const typeDefs = parse(`
     score: Int!
     comment: String!
     createdAt: String!
+    invalidatedAt: String
+    invalidReason: String
   }
 
   type Clarification {
@@ -83,8 +96,78 @@ export const typeDefs = parse(`
     submittedBy: String!
     submittedAt: String!
     reviewRound: Int!
+    scopeConfirmed: Boolean!
+    needsReReview: Boolean!
     reviews: [ReviewerOpinion!]!
     clarifications: [Clarification!]!
+  }
+
+  type MaterialRevision {
+    revision: Int!
+    at: String!
+    actor: String!
+    reason: String!
+    detail: String!
+  }
+
+  type ScopeConfirmation {
+    id: ID!
+    materialId: String!
+    baseRevision: Int!
+    confirmedBy: String!
+    role: ReviewRole!
+    note: String!
+    supplierIds: [String!]!
+    supplierNames: [String!]!
+    clauseIds: [String!]!
+    clauseCodes: [String!]!
+    createdAt: String!
+    superseded: Boolean!
+  }
+
+  type MaterialConflict {
+    id: ID!
+    at: String!
+    actor: String!
+    source: String!
+    detail: String!
+  }
+
+  type MaterialCoverage {
+    responseId: String!
+    clauseId: String!
+    clauseCode: String!
+    clauseTitle: String!
+    supplierId: String!
+    supplierName: String!
+    scopeStatus: ScopeStatus!
+    needsReReview: Boolean!
+  }
+
+  type ProofMaterial {
+    id: ID!
+    fingerprint: String!
+    attachmentName: String!
+    revision: Int!
+    status: MaterialStatus!
+    firstSeenAt: String!
+    updatedAt: String!
+    coverage: [MaterialCoverage!]!
+    confirmations: [ScopeConfirmation!]!
+    conflicts: [MaterialConflict!]!
+    history: [MaterialRevision!]!
+    pendingReReviewCount: Int!
+    confirmedSupplierNames: [String!]!
+    confirmedClauseCodes: [String!]!
+  }
+
+  type VersionMaterialSnapshot {
+    materialId: String!
+    fingerprint: String!
+    attachmentName: String!
+    revision: Int!
+    supplierNames: [String!]!
+    clauseCodes: [String!]!
   }
 
   type ReviewVersion {
@@ -98,6 +181,7 @@ export const typeDefs = parse(`
     clauseCount: Int!
     responseCount: Int!
     contentHash: String!
+    materialSnapshots: [VersionMaterialSnapshot!]!
   }
 
   type AuditLog {
@@ -117,6 +201,10 @@ export const typeDefs = parse(`
     overdueClarifications: Int!
     reusedProofs: Int!
     activeVersion: String!
+    materialCount: Int!
+    pendingScopeConfirmations: Int!
+    pendingReReview: Int!
+    materialConflicts: Int!
   }
 
   type Supplier {
@@ -130,6 +218,7 @@ export const typeDefs = parse(`
     auditLogs: [AuditLog!]!
     dashboard: DashboardStats!
     suppliers: [Supplier!]!
+    materials: [ProofMaterial!]!
   }
 
   input AssessmentInput {
@@ -160,6 +249,33 @@ export const typeDefs = parse(`
     role: ReviewRole!
   }
 
+  input ConfirmScopeInput {
+    verificationId: ID!
+    materialId: ID!
+    baseRevision: Int!
+    supplierIds: [String!]!
+    clauseIds: [String!]!
+    note: String!
+    actor: String!
+    role: ReviewRole!
+  }
+
+  input UpdateProofMaterialInput {
+    responseId: ID!
+    attachmentName: String!
+    proofFingerprint: String!
+    note: String!
+    actor: String!
+    role: ReviewRole!
+  }
+
+  type ConfirmScopePayload {
+    confirmation: ScopeConfirmation
+    conflict: Boolean!
+    message: String!
+    currentRevision: Int
+  }
+
   type Query {
     workspace: WorkspaceData!
     dashboard: DashboardStats!
@@ -170,6 +286,8 @@ export const typeDefs = parse(`
     requestClarification(input: ClarificationInput!): Clarification!
     respondClarification(input: ClarificationResponseInput!): Clarification!
     finalizeVersion(input: FinalizeVersionInput!): ReviewVersion!
+    confirmMaterialScope(input: ConfirmScopeInput!): ConfirmScopePayload!
+    updateProofMaterial(input: UpdateProofMaterialInput!): ProofMaterial!
     resetReviewData: Boolean!
   }
 `);

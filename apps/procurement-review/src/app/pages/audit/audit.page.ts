@@ -10,10 +10,16 @@ import { TableModule } from "primeng/table";
 import { ReviewActions } from "../../core/state/review.actions";
 import {
   selectAuditLogs,
+  selectMaterials,
+  selectMaterialSummary,
   selectRole,
   selectVersions,
 } from "../../core/state/review.selectors";
-import { roleProfiles } from "../../core/models/review.models";
+import {
+  materialStatusLabels,
+  roleProfiles,
+  type ProofMaterial,
+} from "../../core/models/review.models";
 
 @Component({
   selector: "app-audit-page",
@@ -38,6 +44,17 @@ export class AuditPage {
   });
   readonly versions = toSignal(this.store.select(selectVersions), {
     initialValue: [],
+  });
+  readonly materials = toSignal(this.store.select(selectMaterials), {
+    initialValue: [],
+  });
+  readonly materialSummary = toSignal(this.store.select(selectMaterialSummary), {
+    initialValue: {
+      materialCount: 0,
+      pendingScope: 0,
+      pendingReReview: 0,
+      conflictCount: 0,
+    },
   });
   readonly role = toSignal(this.store.select(selectRole), {
     initialValue: "reviewer_a",
@@ -72,9 +89,17 @@ export class AuditPage {
   );
 
   exportJson(): void {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      exportedBy: `${this.role()} · ${roleProfiles[this.role()].name}`,
+      auditLogs: this.filteredLogs(),
+      materials: this.materials().map((material) =>
+        this.materialExportRow(material),
+      ),
+    };
     this.download(
       "procurement-review-audit.json",
-      JSON.stringify(this.filteredLogs(), null, 2),
+      JSON.stringify(payload, null, 2),
       "application/json;charset=utf-8",
     );
   }
@@ -100,8 +125,69 @@ export class AuditPage {
     );
   }
 
+  exportMaterialsCsv(): void {
+    const header = [
+      "材料指纹",
+      "附件",
+      "修订",
+      "状态",
+      "覆盖供应商",
+      "覆盖条款",
+      "已确认供应商",
+      "已确认条款",
+      "待重评数量",
+      "冲突来源",
+    ];
+    const rows = this.materials().map((material) => {
+      const row = this.materialExportRow(material);
+      return [
+        row.fingerprint,
+        row.attachmentName,
+        `R${row.revision}`,
+        row.statusLabel,
+        row.coverageSuppliers,
+        row.coverageClauses,
+        row.confirmedSuppliers,
+        row.confirmedClauses,
+        String(row.pendingReReviewCount),
+        row.conflictSources,
+      ];
+    });
+    const csv = [header, ...rows]
+      .map((row) =>
+        row.map((value) => `"${value.replaceAll('"', '""')}"`).join(","),
+      )
+      .join("\n");
+    this.download(
+      "procurement-review-materials.csv",
+      csv,
+      "text/csv;charset=utf-8",
+    );
+  }
+
   resetReviewData(): void {
     this.store.dispatch(ReviewActions.resetReviewData());
+  }
+
+  private materialExportRow(material: ProofMaterial) {
+    return {
+      fingerprint: material.fingerprint,
+      attachmentName: material.attachmentName,
+      revision: material.revision,
+      statusLabel: materialStatusLabels[material.status],
+      coverageSuppliers: Array.from(
+        new Set(material.coverage.map((entry) => entry.supplierName)),
+      ).join("、"),
+      coverageClauses: Array.from(
+        new Set(material.coverage.map((entry) => entry.clauseCode)),
+      ).join("、"),
+      confirmedSuppliers: material.confirmedSupplierNames.join("、"),
+      confirmedClauses: material.confirmedClauseCodes.join("、"),
+      pendingReReviewCount: material.pendingReReviewCount,
+      conflictSources: material.conflicts
+        .map((conflict) => `${conflict.source}(${conflict.actor})`)
+        .join("；"),
+    };
   }
 
   private download(filename: string, content: string, type: string): void {
